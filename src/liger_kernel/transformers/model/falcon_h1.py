@@ -92,8 +92,11 @@ def lce_forward(
 
     # Compute loss
     if skip_logits:
+        # Scale hidden states by lm_head_multiplier to account for the model's logit scaling factor.
+        # Since lm_head has no bias, scaling the input is mathematically equivalent to scaling the output.
+        scaled_hidden_states = kept_hidden_states * self.model.lm_head_multiplier
         result = LigerForCausalLMLoss(
-            hidden_states=kept_hidden_states,
+            hidden_states=scaled_hidden_states,
             lm_head_weight=self.lm_head.weight,
             labels=labels,
             shift_labels=shift_labels,
@@ -102,7 +105,7 @@ def lce_forward(
         )
         loss, _, token_accuracy, predicted_tokens = unpack_cross_entropy_result(result)
     else:
-        logits = self.lm_head(kept_hidden_states)
+        logits = self.lm_head(kept_hidden_states) * self.model.lm_head_multiplier
         if labels is not None or shift_labels is not None:
             loss = self.loss_function(logits=logits, labels=labels, vocab_size=self.config.vocab_size, **kwargs)
 
